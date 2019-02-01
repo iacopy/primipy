@@ -184,7 +184,7 @@ class Rectangle(Shape):
         np = (p[0] + random.randint(-16, 16), p[1] + random.randint(-16, 16))
 
         n_pts = [self.pts[i] if i != m_idx else np for i in range(2)]
-        return Rectangle(pts=n_pts, col=self.col)
+        return self.__class__(pts=n_pts, col=self.col)
 
     def draw_pillow(self, imp, col):
         """Draw rectangle on Pillow backend.
@@ -215,6 +215,36 @@ class Rectangle(Shape):
                         fill=col_svg, fill_opacity=col_alpha, clip_path="url(#c)")
         dwg.add(rect)
 
+
+class Ellipse(Rectangle):
+    def draw_pillow(self, imp, col):
+        """Draw ellipse on Pillow backend.
+
+        :param imp: Pillow image proxy
+        :type imp: ImageDraw.Draw
+        :param col: shape color RGBA tuple
+        :type col: tuple
+        """
+        if self._factor != 1.0:
+            pts = [(p[0] * self._factor, p[1] * self._factor) for p in self.pts]
+        else:
+            pts = self.pts
+        imp.ellipse(pts, col)
+
+    def draw_svg(self, dwg, col):
+        """Draw ellipse on SVG backend.
+
+        :param dwg: SVG drawing context
+        :type dwg: svgwrite.Drawing
+        :param col: shape color RGBA tuple
+        :type col: tuple
+        """
+        p1, p2 = self.pts
+        col_svg = svgwrite.rgb(r=col[0], g=col[1], b=col[2], mode="RGB")
+        col_alpha = str(col[3] / 255.0)
+        ellipse = dwg.ellipse(center=self.center(), r=((p2[0] - p1[0]) / 2, (p2[1] - p1[1]) / 2),
+                        fill=col_svg, fill_opacity=col_alpha, clip_path="url(#c)")
+        dwg.add(ellipse)
 
 class Line(Shape):
     """Line shape."""
@@ -323,6 +353,21 @@ class State(object):
         p2 = (x + w / 2, y + h / 2)
         return Rectangle(pts=(p1, p2), col=None)
 
+    def randellipse(self):
+        """Generate a random ellipse."""
+        maxw = self.dst.size[0]
+        maxh = self.dst.size[1]
+
+        x, y = random.randint(0, maxw), random.randint(0, maxh)
+        w, h = random.randint(20, maxw), random.randint(20, maxh)
+
+        w /= 2
+        h /= 2
+
+        p1 = (x - w / 2, y - h / 2)
+        p2 = (x + w / 2, y + h / 2)
+        return Ellipse(pts=(p1, p2), col=None)
+
     def randtri(self):
         """Generate a random triangle."""
         maxw = self.dst.size[0]
@@ -373,7 +418,7 @@ class State(object):
         """
         if shape_kind == 'x':
             # random shape
-            shape_kind = random.choice(['t', 'st', 'r', 'l'])
+            shape_kind = random.choice(['t', 'st', 'r', 'e', 'l'])
 
         if shape_kind == 't':
             r = self.randtri()
@@ -381,6 +426,8 @@ class State(object):
             r = self.slopedtri()
         elif shape_kind == 'r':
             r = self.randrect()
+        elif shape_kind == 'e':
+            r = self.randellipse()
         elif shape_kind == 'l':
             r = self.randline()
         else:
@@ -521,7 +568,7 @@ if __name__ == '__main__':
     parser.add_argument("-i", dest="input", help="input image", required=True)
     parser.add_argument("-o", dest="output", help="output image", required=True)
     parser.add_argument("-n", dest="nshapes", type=int, help="number of shapes", required=True)
-    parser.add_argument("-s", dest="shape", type=str, help="kind of shape (l, t, st, r)", default='t')
+    parser.add_argument("-s", dest="shape", type=str, help="kind of shape (l, t, st, r, e)", default='t')
     parser.add_argument("-iters", dest="niters", type=int, help="number of iterations", default=100)
 
     args = parser.parse_args()
