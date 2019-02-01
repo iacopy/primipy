@@ -73,23 +73,26 @@ def dominant_color(im):
 class Shape(object):
     """A generic shape, abstract class."""
 
-    def __init__(self, pts, col, _factor=1.0):
+    def __init__(self, pts, col, width=None, _factor=1.0):
         """Shape constructor.
 
         :param pts: shape points
         :type pts: iterable
         :param col: shape color; None if it should be fetched from image
         :type col: tuple | None
+        :param width: shape width; None if not defined for the shape
+        :type width: int | None
         :param _factor: scale factor to apply while drawing raster
         :type _factor: float
         """
         self.pts = pts
         self.col = col
+        self.width = width
         self._factor = _factor
 
     def __str__(self):
         """String-like representation for Shape."""
-        return str((self.__class__.__name__, self.pts, self.col, self._factor))
+        return str((self.__class__.__name__, self.pts, self.col, self.width, self._factor))
 
     def upscale(self, factor):
         """Return an upscaled representation of this Shape.
@@ -97,7 +100,7 @@ class Shape(object):
         :param factor: scaling factor
         :type factor: float
         """
-        return self.__class__(pts=self.pts, col=self.col, _factor=factor)
+        return self.__class__(pts=self.pts, col=self.col, width=self.width, _factor=factor)
 
 
 class Triangle(Shape):
@@ -213,6 +216,59 @@ class Rectangle(Shape):
         dwg.add(rect)
 
 
+class Line(Shape):
+    """Line shape."""
+
+    def center(self):
+        p1 = self.pts[0]
+        p2 = self.pts[1]
+        return p1[0] + p2[0] / 2, p1[1] + p2[1] / 2
+
+    def mutate(self):
+        """Mutate this Line.
+
+        :return: mutated Line
+        :rtype: Line
+        """
+        m_idx = random.randint(0, 1)
+        p = self.pts[m_idx]
+        np = (p[0] + random.randint(-50, 50), p[1] + random.randint(-50, 50))
+
+        n_pts = [self.pts[i] if i != m_idx else np for i in range(2)]
+
+        width = max(1, self.width + random.randint(-2, 2))
+
+        return Line(pts=n_pts, col=self.col, width=width)
+
+    def draw_pillow(self, imp, col):
+        """Draw line on Pillow backend.
+
+        :param imp: Pillow image proxy
+        :type imp: ImageDraw.Draw
+        :param col: shape color RGBA tuple
+        :type col: tuple
+        """
+        if self._factor != 1.0:
+            pts = [(p[0] * self._factor, p[1] * self._factor) for p in self.pts]
+        else:
+            pts = self.pts
+        imp.line(pts, col, width=self.width * int(self._factor))
+
+    def draw_svg(self, dwg, col):
+        """Draw line on SVG backend.
+
+        :param dwg: SVG drawing context
+        :type dwg: svgwrite.Drawing
+        :param col: shape color RGBA tuple
+        :type col: tuple
+        """
+        # FIXME: the final svg is empty
+        col_svg = svgwrite.rgb(r=col[0], g=col[1], b=col[2], mode="RGB")
+        col_alpha = str(col[3] / 255.0)
+        line = dwg.line(start=self.pts[0], end=self.pts[1], stroke_width=self.width, fill=col_svg, fill_opacity=col_alpha, clip_path="url(#c)")
+        dwg.add(line)
+
+
 class State(object):
     """State object."""
 
@@ -295,13 +351,42 @@ class State(object):
 
         return Triangle(pts=(p1, p2, p3), col=None)
 
-    def improve(self):
+    def randline(self):
+        """Generate a random line."""
+        maxw = self.dst.size[0]
+        maxh = self.dst.size[1]
+
+        x1, y1 = random.randint(0, maxw), random.randint(0, maxh)
+
+        x2 = x1 + random.randint(0, 100) - 50
+        y2 = y1 + random.randint(0, 100) - 50
+
+        width = random.randint(1, 32)
+
+        return Line(pts=((x1, y1), (x2, y2)), col=None, width=width)
+
+    def improve(self, shape_kind):
         """Add a random shape to shape list to create a new State.
 
+        :param shape_kind: shape kind identifier (e.g. 't' for triangle)
+        :type shape_kind: str
         :return: a new State instance
         :rtype: State
         """
-        r = self.randtri()
+        if shape_kind == 'x':
+            # random shape
+            shape_kind = random.choice(['t', 'st', 'r', 'l'])
+
+        if shape_kind == 't':
+            r = self.randtri()
+        elif shape_kind == 'st':
+            r = self.slopedtri()
+        elif shape_kind == 'r':
+            r = self.randrect()
+        elif shape_kind == 'l':
+            r = self.randline()
+        else:
+            raise ValueError('Shape kind unexpected: {}'.format(shape_kind))
 
         # Copies the destination image, including its last rendering
         ndst = copy.copy(self.dst)
@@ -438,6 +523,7 @@ if __name__ == '__main__':
     parser.add_argument("-i", dest="input", help="input image", required=True)
     parser.add_argument("-o", dest="output", help="output image", required=True)
     parser.add_argument("-n", dest="nshapes", type=int, help="number of shapes", required=True)
+    parser.add_argument("-s", dest="shape", type=str, help="kind of shape (l, t, st, r)", default='t')
     parser.add_argument("-iters", dest="niters", type=int, help="number of iterations", default=100)
 
     args = parser.parse_args()
@@ -461,7 +547,7 @@ if __name__ == '__main__':
         # New polygons to try
         for b in range(args.niters):
 
-            ns = best_overall_so_far.improve()
+            ns = best_overall_so_far.improve(shape_kind=args.shape)
 
             if best_so_far is None:
                 best_so_far = ns
