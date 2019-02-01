@@ -22,6 +22,10 @@ from PIL.PngImagePlugin import PngInfo
 
 import svgwrite
 
+# GIF
+from imageio import mimwrite
+from numpy import asarray
+
 
 def error(im1, im2):
     """Calculate the root-mean difference between two images."""
@@ -583,6 +587,10 @@ if __name__ == '__main__':
 
     best_overall_so_far = state
     best_overall_error = state.error()
+
+    # Animation frames
+    frames = []
+
     # Number of shapes in the image
     for a in range(args.nshapes):
 
@@ -629,6 +637,8 @@ if __name__ == '__main__':
             best_overall_so_far = best_mutation_so_far.finalize()
 
         best_overall_so_far.dst.save(args.output)
+        if not a % 5:
+            frames.append(asarray(best_overall_so_far.dst))
 
     # Upscale state to match original image's
     im_final = Image.new("RGB", (orig_w, orig_h))
@@ -644,3 +654,7 @@ if __name__ == '__main__':
     # Save final SVG
     svg_filename = ".".join([os.path.splitext(args.output)[0], "svg"])
     best_overall_so_far.dump_to_svg(svg_filename)
+
+    # Save GIF
+    gif_filename = ".".join([os.path.splitext(args.output)[0], "gif"])
+    mimwrite(gif_filename, frames)
