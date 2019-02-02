@@ -266,7 +266,7 @@ class Line(Shape):
         """
         m_idx = random.randint(0, 1)
         p = self.pts[m_idx]
-        np = (p[0] + random.randint(-50, 50), p[1] + random.randint(-50, 50))
+        np = (p[0] + random.randint(-16, 16), p[1] + random.randint(-16, 16))
 
         n_pts = [self.pts[i] if i != m_idx else np for i in range(2)]
 
@@ -342,13 +342,15 @@ class State(object):
 
         self.render()
 
-    def randrect(self):
+    def randrect(self, size):
         """Generate a random rectangle."""
         maxw = self.dst.size[0]
         maxh = self.dst.size[1]
 
+        start = int(size * 0.9) if size else 0
+
         x, y = random.randint(0, maxw), random.randint(0, maxh)
-        w, h = random.randint(0, maxw), random.randint(0, maxh)
+        w, h = random.randint(start, size), random.randint(start, size)
 
         w /= 2
         h /= 2
@@ -357,13 +359,15 @@ class State(object):
         p2 = (x + w / 2, y + h / 2)
         return Rectangle(pts=(p1, p2), col=None)
 
-    def randellipse(self):
+    def randellipse(self, size):
         """Generate a random ellipse."""
         maxw = self.dst.size[0]
         maxh = self.dst.size[1]
 
+        start = int(size * 0.9) if size else 0
+
         x, y = random.randint(0, maxw), random.randint(0, maxh)
-        w, h = random.randint(20, maxw), random.randint(20, maxh)
+        w, h = random.randint(start, size), random.randint(start, size)
 
         w /= 2
         h /= 2
@@ -372,27 +376,31 @@ class State(object):
         p2 = (x + w / 2, y + h / 2)
         return Ellipse(pts=(p1, p2), col=None)
 
-    def randtri(self):
+    def randtri(self, size):
         """Generate a random triangle."""
         maxw = self.dst.size[0]
         maxh = self.dst.size[1]
 
+        start = int(size * 0.9) if size else 0
+
         x1, y1 = random.randint(0, maxw), random.randint(0, maxh)
 
-        x2 = x1 + random.randint(0, 31) - 15
-        y2 = y1 + random.randint(0, 31) - 15
-        x3 = x1 + random.randint(0, 31) - 15
-        y3 = y1 + random.randint(0, 31) - 15
+        x2 = x1 + random.randint(start, size) - start
+        y2 = y1 + random.randint(start, size) - start
+        x3 = x1 + random.randint(start, size) - start
+        y3 = y1 + random.randint(start, size) - start
 
         return Triangle(pts=((x1, y1), (x2, y2), (x3, y3)), col=None)
 
-    def slopedtri(self):
+    def slopedtri(self, size):
         """Generate a sloped triangle shape."""
         maxw = self.dst.size[0]
         maxh = self.dst.size[1]
 
+        start = int(size * 0.9) if size else 0
+
         x, y = random.randint(0, maxw), random.randint(0, maxh)
-        w, h = random.randint(0, maxw), random.randint(0, maxh)
+        w, h = random.randint(start, size), random.randint(0, size)
 
         p1 = (x - w / 2, y - h / 2)
         p2 = (x + w / 2, y + h / 2)
@@ -400,23 +408,29 @@ class State(object):
 
         return Triangle(pts=(p1, p2, p3), col=None)
 
-    def randline(self):
+    def randline(self, size):
         """Generate a random line."""
         maxw = self.dst.size[0]
         maxh = self.dst.size[1]
 
+        start = int(size * 0.9) if size else 0
+
         x1, y1 = random.randint(0, maxw), random.randint(0, maxh)
 
-        x2 = x1 + random.randint(0, 100) - 50
-        y2 = y1 + random.randint(0, 100) - 50
+        x2 = x1 + random.randint(start, size) - start
+        y2 = y1 + random.randint(start, size) - start
 
-        width = random.randint(1, 32)
+        width = random.randint(start, size)
 
         return Line(pts=((x1, y1), (x2, y2)), col=None, width=width)
 
-    def improve(self, shape_kind):
+    def improve(self, shape_kind, size):
         """Add a random shape to shape list to create a new State.
 
+        :shape_kind: the kind of shape to use (rect, triangle, ...)
+        :type shape_kind: str
+        :size: max size in pixel of the shape that will be added
+        :type size: int
         :return: a new State instance
         :rtype: State
         """
@@ -425,15 +439,15 @@ class State(object):
             shape_kind = random.choice(['t', 'st', 'r', 'e', 'l'])
 
         if shape_kind == 't':
-            r = self.randtri()
+            r = self.randtri(size)
         elif shape_kind == 'st':
-            r = self.slopedtri()
+            r = self.slopedtri(size)
         elif shape_kind == 'r':
-            r = self.randrect()
+            r = self.randrect(size)
         elif shape_kind == 'e':
-            r = self.randellipse()
+            r = self.randellipse(size)
         elif shape_kind == 'l':
-            r = self.randline()
+            r = self.randline(size)
         else:
             raise ValueError('Shape kind unexpected: {}'.format(shape_kind))
 
@@ -574,6 +588,7 @@ if __name__ == '__main__':
     parser.add_argument("-n", dest="nshapes", type=int, help="number of shapes", required=True)
     parser.add_argument("-s", dest="shape", type=str, help="kind of shape (l, t, st, r, e)", default='t')
     parser.add_argument("-iters", dest="niters", type=int, help="number of iterations", default=100)
+    parser.add_argument("-decreasize", dest="decreasing_size", type=int, help="shapes size decreases along iterations", default=1)
 
     args = parser.parse_args()
 
@@ -591,16 +606,26 @@ if __name__ == '__main__':
     # Animation frames
     frames = []
 
+    # Init shape size
+    max_shape_size = 0
+    if args.decreasing_size == 1:  # decrease if not improve
+        max_shape_size = 256
+
     # Number of shapes in the image
     for a in range(args.nshapes):
+        progress = a / args.nshapes
 
         best_so_far = None
         best_error = None
 
+        # Linearry max shape size during iterations if the option `decreasing_size` == 2
+        if args.decreasing_size == 2:
+            max_shape_size = max(2, int((1 - progress) * 256))
+
         # New polygons to try
         for b in range(args.niters):
 
-            ns = best_overall_so_far.improve(shape_kind=args.shape)
+            ns = best_overall_so_far.improve(shape_kind=args.shape, size=max_shape_size)
 
             if best_so_far is None:
                 best_so_far = ns
@@ -616,7 +641,7 @@ if __name__ == '__main__':
             best_overall_error = best_error
             best_overall_so_far = best_so_far
             if args.verbose > 0:
-                print("Iter", a, "Error improved to", best_error)
+                print("Iter", a, "Error improved to", best_error, "max shape size =", max_shape_size)
 
         # Also run mutations on the best shape
         best_mutation_so_far = best_overall_so_far
@@ -635,6 +660,9 @@ if __name__ == '__main__':
         if best_mutation_error < best_overall_error:
             best_overall_error = best_mutation_error
             best_overall_so_far = best_mutation_so_far.finalize()
+        else:
+            if args.decreasing_size == 1:
+                max_shape_size = max(2, max_shape_size - 1)
 
         best_overall_so_far.dst.save(args.output)
         if not a % 5:
